@@ -1,0 +1,263 @@
+#include <ESP8266WiFi.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <WebSocketsServer.h>
+#include <Arduino_JSON.h>
+#include <espnow.h>
+#include <Ticker.h>
+
+#define CHANNEL 1
+
+//////////////// ESWP 32      ESP Board MAC Address:  E0:5A:1B:A7:03:24
+//////////////// NOCE MCU     ESP Board MAC Address:  40:91:51:51:78:79
+
+typedef struct struct_message {
+    int id;
+    float temp;
+    float tds;
+    float pH;
+    long level;
+} struct_message;
+
+struct_message incomingReadings;
+
+JSONVar board;
+String jsonString;
+
+AsyncWebServer server(80);
+WebSocketsServer websockets(81);
+
+Ticker timer;
+
+void OnDataRecv(uint8_t * mac_addr, uint8_t *incomingData, uint8_t len) { 
+  // Copies the sender mac address to a string
+  char macStr[18];
+  Serial.print("Packet received from: ");
+  snprintf(macStr, sizeof(macStr), "%0xE0:%0x5A:%0x1B:%0xA7:%0x03:%0x24", 
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.println(macStr);
+  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
+  
+  board["id"] = incomingReadings.id;
+  board["temperature"] = incomingReadings.temp;
+  board["tds"] = incomingReadings.tds;
+  board["ph"] = incomingReadings.pH;
+  board["level"] = incomingReadings.level;
+  jsonString = JSON.stringify(board);
+ // events.send(jsonString.c_str(), "new_readings", millis());
+  websockets.broadcastTXT(jsonString);
+  
+  Serial.printf("Board ID %u: %u bytes\n", incomingReadings.id, len);
+  Serial.printf("tempvalue: %4.2f \n", incomingReadings.temp);
+  Serial.printf("tds value: %4.2f \n", incomingReadings.tds);
+  Serial.printf("ph value: %4.2f \n", incomingReadings.pH);
+  Serial.printf("level value: %4.2f \n", incomingReadings.level);
+  Serial.println();
+}
+
+char webpage[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html lang="en">
+<script>
+
+var connection = new WebSocket('ws://'+location.hostname+':81/');
+connection.onmessage = function(event){
+
+var full_data = event.data;
+var data= JSON.parse(full_data);
+
+var temp_data = data.temperature;
+var tds_data = data.tds;
+var ph_data = data.ph;
+var level_data = data.level;
+
+switch(data.id){
+  case 1: p1();
+          break;
+  case 2: p2();
+          break;
+  case 3: p3();
+          break;
+  case 4: p4();
+          break;     
+}
+
+function p1(){
+  document.getElementById("temp_meter1").value = temp_data;
+  document.getElementById("temp_value1").innerHTML = temp_data;
+  document.getElementById("tds_meter1").value = tds_data;
+  document.getElementById("tds_value1").innerHTML = tds_data;
+  document.getElementById("ph_meter1").value = ph_data;
+  document.getElementById("ph_value1").innerHTML = ph_data;
+  document.getElementById("level_meter1").value = level_data;
+  document.getElementById("level_value1").innerHTML = level_data;
+}
+
+function p2(){
+  document.getElementById("temp_meter2").value = temp_data;
+  document.getElementById("temp_value2").innerHTML = temp_data;
+  document.getElementById("tds_meter2").value = tds_data;
+  document.getElementById("tds_value2").innerHTML = tds_data;
+  document.getElementById("ph_meter2").value = ph_data;
+  document.getElementById("ph_value2").innerHTML = ph_data;
+  document.getElementById("level_meter2").value = level_data;
+  document.getElementById("level_value2").innerHTML = level_data;
+}
+
+function p3(){
+  document.getElementById("temp_meter3").value = temp_data;
+  document.getElementById("temp_value3").innerHTML = temp_data;
+  document.getElementById("tds_meter3").value = tds_data;
+  document.getElementById("tds_value3").innerHTML = tds_data;
+  document.getElementById("ph_meter3").value = ph_data;
+  document.getElementById("ph_value3").innerHTML = ph_data;
+  document.getElementById("level_meter3").value = level_data;
+  document.getElementById("level_value3").innerHTML = level_data;
+}
+
+function p4(){
+  document.getElementById("temp_meter4").value = temp_data;
+  document.getElementById("temp_value4").innerHTML = temp_data;
+  document.getElementById("tds_meter4").value = tds_data;
+  document.getElementById("tds_value4").innerHTML = tds_data;
+  document.getElementById("ph_meter4").value = ph_data;
+  document.getElementById("ph_value4").innerHTML = ph_data;
+  document.getElementById("level_meter4").value = level_data;
+  document.getElementById("level_value4").innerHTML = level_data;
+}
+}
+</script>
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="proj.css">
+    <style>
+        .Row1{
+          text-align: center;
+          display: flex;
+          justify-content: space-around;
+          padding-bottom: 5%;
+        }
+
+        .box{
+            width: 700px;
+            height: 300px;
+            border: 5px solid black;
+            background-color: aqua;
+        }
+
+        .content{
+            text-align: left;
+            padding-left: 2%;
+        }
+          
+        .Row2{
+            text-align: center;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        body{
+          font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="Title">
+        <h1><center>WATER HEALTH MONITORING SYSTEM</center></h1>
+    </div>
+
+    <div class="Row1">
+        <div class="box">
+            <h3>POND 1</h3>
+            <div class="content">
+                TEMPERATURE  <meter value="0" min="0" max="125" low="15" high="30" optimum= "20" id="temp_meter1"></meter><h3 id="temp_value1" style="display: inline-block;"> 0°C </h3><br>
+                TDS          <meter value="0" min="0" max="1000" low="50" high="800" optimum= "500" id="tds_meter1"></meter><h3 id="tds_value1" style="display: inline-block;"> 0ppm </h3><br>
+                pH           <meter value="0" min="0" max="15" low="5" high="9" optimum= "7" id="ph_meter1"></meter><h3 id="ph_value1" style="display: inline-block;"> 0pH </h3><br>
+                WATER LEVEL  <meter value="0" min="0" max="25" low="5" high="25" optimum= "20" id="level_meter1"></meter><h3 id="level_value1" style="display: inline-block;"> 0m </h3><br>
+            </div>
+        </div>
+
+        <div class="box">
+            <h3>POND 2</h3>
+            <div class="content">
+                TEMPERATURE  <meter value="0" min="0" max="125" low="15" high="30" optimum= "20" id="temp_meter2"></meter><h3 id="temp_value2" style="display: inline-block;"> 0°C </h3><br>
+                TDS          <meter value="0" min="0" max="1000" low="50" high="800" optimum= "500" id="tds_meter2"></meter><h3 id="tds_value2" style="display: inline-block;"> 0ppm </h3><br>
+                pH           <meter value="0" min="0" max="15" low="5" high="9" optimum= "7" id="ph_meter2"></meter><h3 id="ph_value2" style="display: inline-block;"> 0pH </h3><br>
+                WATER LEVEL  <meter value="0" min="0" max="25" low="5" high="25" optimum= "20" id="level_meter2"></meter><h3 id="level_value2" style="display: inline-block;"> 0m </h3><br>
+            </div>
+        </div>
+    </div>
+    
+    <div class="Row2">
+        <div class="box">
+            <h3>POND 3</h3>
+            <div class="content">
+                TEMPERATURE  <meter value="0" min="0" max="125" low="15" high="30" optimum= "20" id="temp_meter3"></meter><h3 id="temp_value3" style="display: inline-block;"> 0°C </h3><br>
+                TDS          <meter value="0" min="0" max="1000" low="50" high="800" optimum= "500" id="tds_meter3"></meter><h3 id="tds_value3" style="display: inline-block;"> 0ppm </h3><br>
+                pH           <meter value="0" min="0" max="15" low="5" high="9" optimum= "7" id="ph_meter3"></meter><h3 id="ph_value3" style="display: inline-block;"> 0pH </h3><br>
+                WATER LEVEL  <meter value="0" min="0" max="25" low="5" high="25" optimum= "20" id="level_meter3"></meter><h3 id="level_value3" style="display: inline-block;"> 0m </h3><br>
+            </div>
+        </div>
+
+        <div class="box">
+            <h3>POND 4</h3>
+            <div class="content">
+                TEMPERATURE  <meter value="0" min="0" max="125" low="15" high="30" optimum= "20" id="temp_meter4"></meter><h3 id="temp_value4" style="display: inline-block;"> 0°C </h3><br>
+                TDS          <meter value="0" min="0" max="1000" low="50" high="800" optimum= "500" id="tds_meter4"></meter><h3 id="tds_value4" style="display: inline-block;"> 0ppm </h3><br>
+                pH           <meter value="0" min="0" max="15" low="5" high="9" optimum= "7" id="ph_meter4"></meter><h3 id="ph_value4" style="display: inline-block;"> 0pH </h3><br>
+                WATER LEVEL  <meter value="0" min="0" max="25" low="5" high="25" optimum= "20" id="level_meter4"></meter><h3 id="level_value4" style="display: inline-block;"> 0m </h3><br>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
+
+)=====";
+
+void setup() {
+  Serial.begin(115200);
+
+  // Set the device as a Station and Soft Access Point simultaneously
+  WiFi.mode(WIFI_AP);
+  
+  WiFi.softAP("RX_1","RX_1_Password", CHANNEL, 0);
+  Serial.println(WiFi.softAPIP());
+  
+  // Init ESP-NOW
+  if (esp_now_init() != 0) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  
+  // Once ESPNow is successfully Init, we will register for recv CB to
+  // get recv packer info
+  esp_now_register_recv_cb(OnDataRecv);
+
+  server.on("/", [](AsyncWebServerRequest *request){
+    request->send_P(200,"text/html",webpage);
+  });
+
+  server.onNotFound([](AsyncWebServerRequest *request){
+    request->send(404, "text/html", "Page not found");
+  });
+
+  server.begin();
+  websockets.begin();
+  //websockets.onEvent(webSocketEvent);
+  //timer.attach(1,send_data);
+}
+
+void loop() {
+  websockets.loop();
+}
+
+/*void send_data(){
+  
+}*/
+
